@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boll Brick Breaker - Ghost Edition</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #090d16;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            box-shadow: 0 0 35px rgba(168, 85, 247, 0.4);
+            border-radius: 12px;
+            overflow: hidden;
+            background: #111827;
+        }
+        canvas { display: block; background: #0b0f19; }
+        
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, #1f192f 0%, #0b0f19 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        .title {
+            font-size: 44px;
+            font-weight: 900;
+            text-transform: uppercase;
+            background: linear-gradient(45deg, #a855f7, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 15px;
+            text-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+        }
+        .progress-box {
+            width: 60%;
+            height: 20px;
+            background: #1f2937;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #a855f7;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #a855f7, #ec4899);
+            transition: width 0.1s;
+        }
+        .loading-text { margin-top: 10px; color: #9ca3af; font-weight: 600; }
+        
+        .mode-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin: 15px 0;
+            max-width: 80%;
+        }
+        .mode-btn {
+            background: #1f2937;
+            border: 2px solid #374151;
+            color: white;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .mode-btn:hover, .mode-btn.active {
+            background: #a855f7;
+            border-color: #c084fc;
+            box-shadow: 0 0 12px rgba(168, 85, 247, 0.6);
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #a855f7, #ec4899);
+            border: none;
+            color: white;
+            padding: 14px 36px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
+            transition: transform 0.2s;
+            margin-top: 10px;
+        }
+        .btn:hover { transform: scale(1.05); }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="overlay">
+        <h1 class="title">Ghost Brick Breaker</h1>
+        <div class="progress-box"><div id="progress" class="progress-bar"></div></div>
+        <div id="loading-status" class="loading-text">Loading Game Engine... 0%</div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="overlay hidden">
+        <h1 class="title">Ghost Brick Breaker</h1>
+        <p style="color: #cbd5e1; margin-bottom: 5px;" id="level-display-label">Select Difficulty for Level 1:</p>
+        
+        <div class="mode-container">
+            <button class="mode-btn" onclick="selectMode('practice', this)">Practice</button>
+            <button class="mode-btn" onclick="selectMode('easy', this)">Easy</button>
+            <button class="mode-btn active" onclick="selectMode('normal', this)">Normal</button>
+            <button class="mode-btn" onclick="selectMode('hard', this)">Hard</button>
+            <button class="mode-btn" onclick="selectMode('extreme', this)">Extreme</button>
+        </div>
+
+        <button class="btn" id="start-btn" onclick="startSelectedLevel()">START GAME</button>
+    </div>
+
+    <!-- Canvas -->
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let currentLevel = 1;
+const maxLevels = 100;
+let score = 0;
+let lives = 3;
+let gameState = "LOADING"; 
+let selectedDifficulty = "normal";
+
+const modeSettings = {
+    practice: { speed: 3.0, paddleWidth: 150, hpMult: 0 },
+    easy:     { speed: 3.8, paddleWidth: 130, hpMult: 0.1 },
+    normal:   { speed: 4.5, paddleWidth: 110, hpMult: 0.3 },
+    hard:     { speed: 5.5, paddleWidth: 90,  hpMult: 0.6 },
+    extreme:  { speed: 6.8, paddleWidth: 75,  hpMult: 0.8 }
+};
+
+let paddle = { x: 340, y: 550, width: 110, height: 16, speed: 8, dx: 0 };
+let balls = [];
+let bricks = [];
+let particles = [];
+let ghostAnimation = { scale: 0, opacity: 0, active: false };
+
+document.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft" || e.key === "a") paddle.dx = -paddle.speed;
+    if (e.key === "ArrowRight" || e.key === "d") paddle.dx = paddle.speed;
+    if (e.key === " ") {
+        balls.forEach(b => {
+            if (b.attached) {
+                b.attached = false;
+                b.dy = -Math.abs(b.speed);
+            }
+        });
+    }
+});
+document.addEventListener("keyup", (e) => {
+    if (["ArrowLeft", "a", "ArrowRight", "d"].includes(e.key)) paddle.dx = 0;
+});
+
+let loadPercent = 0;
+let loadInterval = setInterval(() => {
+    loadPercent += Math.floor(Math.random() * 8) + 2;
+    if (loadPercent >= 100) {
+        loadPercent = 100;
+        clearInterval(loadInterval);
+        setTimeout(() => {
+            document.getElementById("loading-screen").classList.add("hidden");
+            document.getElementById("start-screen").classList.remove("hidden");
+        }, 500);
+    }
+    document.getElementById("progress").style.width = loadPercent + "%";
+    document.getElementById("loading-status").innerText = "Loading Game Engine... " + loadPercent + "%";
+}, 80);
+
+function selectMode(mode, btnElement) {
+    selectedDifficulty = mode;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btnElement.classList.add('active');
+}
+
+function showModeSelection() {
+    document.getElementById("level-display-label").innerText = `Select Difficulty for Level ${currentLevel}:`;
+    document.getElementById("start-btn").innerText = currentLevel === 1 ? "START GAME" : "NEXT LEVEL";
+    document.getElementById("start-screen").classList.remove("hidden");
+}
+
+function startSelectedLevel() {
+    document.getElementById("start-screen").classList.add("hidden");
+    loadLevel(currentLevel);
+    gameState = "PLAYING";
+    requestAnimationFrame(gameLoop);
+}
+
+function initBricks(level) {
+    bricks = [];
+    const rows = 5;
+    const cols = 10;
+    const offsetTop = 50;
+    const offsetLeft = 40;
+    const totalWidth = canvas.width - (offsetLeft * 2);
+    const width = totalWidth / cols;
+    const height = 24;
+
+    const config = modeSettings[selectedDifficulty];
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            let hp = 1;
+            let rand = Math.random();
+
+            if (rand < config.hpMult * 0.4) hp = 3;
+            else if (rand < config.hpMult) hp = 2;
+
+            let baseHue = (r * 35 + level * 6) % 360;
+
+            bricks.push({
+                x: c * width + offsetLeft,
+                y: r * height + offsetTop,
+                w: width,
+                h: height,
+                hp: hp,
+                maxHp: hp,
+                hue: baseHue
+            });
+        }
+    }
+}
+
+function loadLevel(lvl) {
+    const config = modeSettings[selectedDifficulty];
+    paddle.width = config.paddleWidth;
+    
+    // Level 50 se 3 Balls hongi, usse pehle 1 Ball
+    const ballCount = lvl >= 50 ? 3 : 1;
+    resetBalls(config.speed, ballCount);
+    
+    initBricks(lvl);
+    ghostAnimation.active = false;
+}
+
+function resetBalls(speed, count = 1) {
+    balls = [];
+    if (count === 1) {
+        balls.push({
+            x: 0, y: 0, radius: 8, speed: speed, dx: speed * 0.7, dy: -speed * 0.7,
+            attached: true, offset: 0, color: '#f43f5e'
+        });
+    } else {
+        const offsets = [-35, 0, 35];
+        const colors = ['#f43f5e', '#38bdf8', '#a855f7'];
+        const dxAngles = [-0.8, 0, 0.8];
+
+        for (let i = 0; i < count; i++) {
+            balls.push({
+                x: 0, y: 0, radius: 8, speed: speed,
+                dx: speed * dxAngles[i % dxAngles.length],
+                dy: -speed * 0.8,
+                attached: true,
+                offset: offsets[i % offsets.length],
+                color: colors[i % colors.length]
+            });
+        }
+    }
+}
+
+function createParticles(x, y, color) {
+    for (let i = 0; i < 8; i++) {
+        particles.push({
+            x: x, y: y,
+            dx: (Math.random() - 0.5) * 6,
+            dy: (Math.random() - 0.5) * 6,
+            radius: Math.random() * 3 + 1,
+            color: color,
+            life: 18
+        });
+    }
+}
+
+function update() {
+    if (gameState !== "PLAYING") return;
+
+    paddle.x += paddle.dx;
+    if (paddle.x < 0) paddle.x = 0;
+    if (paddle.x + paddle.width > canvas.width) paddle.x = canvas.width - paddle.width;
+
+    let activeBalls = 0;
+
+    balls.forEach((ball) => {
+        if (ball.y > canvas.height + 20) return;
+
+        if (ball.attached) {
+            ball.x = paddle.x + paddle.width / 2 + ball.offset;
+            ball.y = paddle.y - ball.radius - 2;
+            activeBalls++;
+        } else {
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) ball.dx *= -1;
+            if (ball.y - ball.radius < 0) ball.dy *= -1;
+
+            if (ball.y - ball.radius <= canvas.height) {
+                activeBalls++;
+            }
+
+            if (ball.x > paddle.x && ball.x < paddle.x + paddle.width &&
+                ball.y + ball.radius > paddle.y && ball.y - ball.radius < paddle.y + paddle.height) {
+                let hitPoint = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
+                ball.dx = hitPoint * ball.speed * 1.2;
+                ball.dy = -Math.abs(ball.speed);
+            }
+
+            bricks.forEach((b) => {
+                if (b.hp > 0) {
+                    if (ball.x > b.x && ball.x < b.x + b.w &&
+                        ball.y - ball.radius < b.y + b.h && ball.y + ball.radius > b.y) {
+                        ball.dy *= -1;
+                        b.hp--;
+                        score += 10;
+                        createParticles(ball.x, ball.y, `hsl(${b.hue}, 80%, 50%)`);
+
+                        if (bricks.every(brick => brick.hp <= 0)) {
+                            triggerGhostEnd();
+                        }
+                    }
+                }
+            });
+        }
+    });
+
+    if (activeBalls === 0) {
+        lives--;
+        if (lives <= 0) {
+            alert("Game Over! Final Score: " + score);
+            currentLevel = 1;
+            lives = 3;
+            score = 0;
+            showModeSelection();
+            gameState = "MENU";
+        } else {
+            const ballCount = currentLevel >= 50 ? 3 : 1;
+            resetBalls(modeSettings[selectedDifficulty].speed, ballCount);
+        }
+    }
+
+    particles.forEach((p, index) => {
+        p.x += p.dx;
+        p.y += p.dy;
+        p.life--;
+        if (p.life <= 0) particles.splice(index, 1);
+    });
+}
+
+function triggerGhostEnd() {
+    gameState = "GHOST_CLEAR";
+    ghostAnimation.active = true;
+    ghostAnimation.scale = 0.1;
+    ghostAnimation.opacity = 0;
+}
+
+function draw3DBrick(b) {
+    if (b.hp <= 0) return;
+
+    let x = b.x, y = b.y, w = b.w, h = b.h, depth = 4;
+    let alpha = b.hp / b.maxHp;
+    ctx.globalAlpha = alpha;
+
+    let grad = ctx.createLinearGradient(x, y, x, y + h);
+    grad.addColorStop(0, `hsl(${b.hue}, 80%, 60%)`);
+    grad.addColorStop(1, `hsl(${b.hue}, 80%, 40%)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, w, h);
+
+    ctx.fillStyle = `hsl(${b.hue}, 80%, 80%)`;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w - depth, y + depth); ctx.lineTo(x + depth, y + depth); ctx.fill();
+
+    ctx.fillStyle = `hsl(${b.hue}, 80%, 70%)`;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + depth, y + depth); ctx.lineTo(x + depth, y + h - depth); ctx.lineTo(x, y + h); ctx.fill();
+
+    ctx.fillStyle = `hsl(${b.hue}, 80%, 25%)`;
+    ctx.beginPath(); ctx.moveTo(x, y + h); ctx.lineTo(x + depth, y + h - depth); ctx.lineTo(x + w - depth, y + h - depth); ctx.lineTo(x + w, y + h); ctx.fill();
+
+    ctx.fillStyle = `hsl(${b.hue}, 80%, 30%)`;
+    ctx.beginPath(); ctx.moveTo(x + w, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w - depth, y + h - depth); ctx.lineTo(x + w - depth, y + depth); ctx.fill();
+
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, w, h);
+
+    ctx.globalAlpha = 1.0;
+}
+
+function drawGhostFace(cx, cy, scale) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+
+    ctx.shadowBlur = 40;
+    ctx.shadowColor = "#c084fc";
+
+    ctx.fillStyle = "rgba(243, 232, 255, 0.95)";
+    ctx.beginPath();
+    ctx.arc(0, -20, 90, Math.PI, 0, false);
+    ctx.quadraticCurveTo(100, 80, 80, 110);
+    ctx.quadraticCurveTo(40, 80, 0, 110);
+    ctx.quadraticCurveTo(-40, 80, -80, 110);
+    ctx.quadraticCurveTo(-100, 80, -90, -20);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = "#dc2626";
+    ctx.fillStyle = "#991b1b";
+
+    ctx.beginPath();
+    ctx.ellipse(-35, -25, 20, 28, Math.PI / 12, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.ellipse(35, -25, 20, 28, -Math.PI / 12, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#ef4444";
+    ctx.beginPath();
+    ctx.arc(-32, -22, 8, 0, Math.PI * 2);
+    ctx.arc(32, -22, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#111827";
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = "#000";
+    ctx.beginPath();
+    ctx.ellipse(0, 35, 30, 45, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let pGrad = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x, paddle.y + paddle.height);
+    pGrad.addColorStop(0, "#c084fc");
+    pGrad.addColorStop(1, "#7e22ce");
+    ctx.fillStyle = pGrad;
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = "#a855f7";
+    ctx.beginPath();
+    ctx.roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 5);
+    ctx.fill();
+
+    balls.forEach(ball => {
+        if (ball.y > canvas.height + 20) return;
+        let ballGrad = ctx.createRadialGradient(
+            ball.x - 2, ball.y - 2, 1,
+            ball.x, ball.y, ball.radius
+        );
+        ballGrad.addColorStop(0, "#ffffff");
+        ballGrad.addColorStop(0.4, ball.color);
+        ballGrad.addColorStop(1, "#4c1d95");
+
+        ctx.fillStyle = ballGrad;
+        ctx.shadowColor = ball.color;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+
+    bricks.forEach(b => draw3DBrick(b));
+
+    particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 16px Segoe UI";
+    ctx.fillText(`Level: ${currentLevel}/${maxLevels}`, 20, 30);
+    ctx.fillText(`Score: ${score}`, 300, 30);
+    ctx.fillText(`Mode: ${selectedDifficulty.toUpperCase()}`, 480, 30);
+    ctx.fillText(`Lives: ${lives}`, 700, 30);
+
+    if (gameState === "GHOST_CLEAR") {
+        if (ghostAnimation.opacity < 1) ghostAnimation.opacity += 0.03;
+        if (ghostAnimation.scale < 1.2) ghostAnimation.scale += 0.03;
+
+        ctx.fillStyle = `rgba(11, 15, 25, ${ghostAnimation.opacity * 0.88})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        drawGhostFace(canvas.width / 2, canvas.height / 2 - 20, ghostAnimation.scale);
+
+        ctx.fillStyle = "#e9d5ff";
+        ctx.font = "900 32px Segoe UI";
+        ctx.shadowColor = "#a855f7";
+        ctx.shadowBlur = 15;
+        ctx.textAlign = "center";
+        ctx.fillText("GHOST DEFEATED! LEVEL CLEARED!", canvas.width / 2, canvas.height - 70);
+
+        if (ghostAnimation.scale >= 1.2) {
+            setTimeout(() => {
+                ctx.textAlign = "start";
+                if (currentLevel < maxLevels) {
+                    currentLevel++;
+                    showModeSelection();
+                    gameState = "MENU";
+                } else {
+                    alert("ULTIMATE VICTORY! YOU CONQUERED ALL 100 GHOST LEVELS!");
+                    currentLevel = 1;
+                    showModeSelection();
+                    gameState = "MENU";
+                }
+            }, 1200);
+        }
+        ctx.textAlign = "start";
+    }
+}
+
+function gameLoop() {
+    update();
+    draw();
+    if (gameState === "PLAYING" || gameState === "GHOST_CLEAR") {
+        requestAnimationFrame(gameLoop);
+    }
+}
+</script>
+</body>
+</html>
