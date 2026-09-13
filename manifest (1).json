@@ -1,0 +1,13 @@
+{
+  "background_color": "#ffffff",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "Ghost Brick Breaker.",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "Ghost Brick Breaker.",
+  "start_url": "/",
+  "theme_color": "#ffffff",
+  "id": "Ghost Brick Breaker.",
+  "description": "An exciting retro brick breaker game with 100 levels and ghost elements."
+}
