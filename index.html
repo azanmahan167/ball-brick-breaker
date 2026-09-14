@@ -5,36 +5,100 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Boll Brick Breaker - Ghost Edition</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+            user-select: none; 
+            -webkit-user-select: none; 
+            touch-action: none;
+        }
         body {
             background: #090d16;
             color: #fff;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             overflow: hidden;
-            touch-action: none;
+            background-color: #05070d;
         }
+
+        /* Mode Selector Toolbar on top */
+        #top-bar {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+            background: rgba(17, 24, 39, 0.85);
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        .mode-toggle-btn {
+            background: #1f2937;
+            border: 1px solid #374151;
+            color: #d1d5db;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .mode-toggle-btn.active {
+            background: linear-gradient(135deg, #a855f7, #ec4899);
+            border-color: #f472b6;
+            color: #ffffff;
+            box-shadow: 0 0 10px rgba(168, 85, 247, 0.6);
+        }
+
+        /* Container dynamics */
         #game-container {
             position: relative;
             width: 800px;
             height: 600px;
+            max-width: 95vw;
+            max-height: 85vh;
+            aspect-ratio: 4/3;
             box-shadow: 0 0 35px rgba(168, 85, 247, 0.4);
             border-radius: 12px;
             overflow: hidden;
             background: #111827;
+            transition: all 0.3s ease;
+            margin-top: 30px;
         }
 
+        /* Mobile specific mode override */
         #game-container.mobile-mode {
             width: 100vw !important;
             height: 100vh !important;
+            max-width: 100vw !important;
+            max-height: 100vh !important;
+            aspect-ratio: auto !important;
             border-radius: 0 !important;
             box-shadow: none !important;
+            margin-top: 0 !important;
         }
 
-        canvas { display: block; background: #0b0f19; width: 100%; height: 100%; }
+        canvas { 
+            display: block; 
+            background: #0b0f19; 
+            width: 100%; 
+            height: 100%; 
+        }
         
         .overlay {
             position: absolute;
@@ -45,9 +109,11 @@
             justify-content: center;
             align-items: center;
             z-index: 10;
+            padding: 20px;
+            text-align: center;
         }
         .title {
-            font-size: 44px;
+            font-size: clamp(24px, 5vw, 44px);
             font-weight: 900;
             text-transform: uppercase;
             background: linear-gradient(45deg, #a855f7, #ec4899);
@@ -55,11 +121,11 @@
             -webkit-text-fill-color: transparent;
             margin-bottom: 15px;
             text-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
-            text-align: center;
         }
         .progress-box {
-            width: 60%;
-            height: 20px;
+            width: 80%;
+            max-width: 300px;
+            height: 18px;
             background: #1f2937;
             border-radius: 10px;
             overflow: hidden;
@@ -71,22 +137,22 @@
             background: linear-gradient(90deg, #a855f7, #ec4899);
             transition: width 0.1s;
         }
-        .loading-text { margin-top: 10px; color: #9ca3af; font-weight: 600; }
+        .loading-text { margin-top: 10px; color: #9ca3af; font-weight: 600; font-size: 14px; }
         
         .mode-container {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 8px;
             justify-content: center;
             margin: 15px 0;
-            max-width: 80%;
+            max-width: 90%;
         }
         .mode-btn {
             background: #1f2937;
             border: 2px solid #374151;
             color: white;
-            padding: 10px 18px;
-            font-size: 14px;
+            padding: 8px 14px;
+            font-size: 13px;
             font-weight: bold;
             border-radius: 8px;
             cursor: pointer;
@@ -102,8 +168,8 @@
             background: linear-gradient(45deg, #a855f7, #ec4899);
             border: none;
             color: white;
-            padding: 14px 36px;
-            font-size: 18px;
+            padding: 12px 30px;
+            font-size: 16px;
             font-weight: bold;
             border-radius: 8px;
             cursor: pointer;
@@ -117,6 +183,16 @@
 </head>
 <body>
 
+<!-- Dynamic Viewport Switcher Toolbar -->
+<div id="top-bar">
+    <button id="laptop-mode-btn" class="mode-toggle-btn active" onclick="setResponsiveMode('laptop')">
+        💻 Laptop Mode
+    </button>
+    <button id="mobile-mode-btn" class="mode-toggle-btn" onclick="setResponsiveMode('mobile')">
+        📱 Mobile Mode
+    </button>
+</div>
+
 <div id="game-container">
     <!-- Loading Screen -->
     <div id="loading-screen" class="overlay">
@@ -125,15 +201,7 @@
         <div id="loading-status" class="loading-text">Loading Game Engine... 0%</div>
     </div>
 
-    <!-- Device Selection Screen -->
-    <div id="device-screen" class="overlay hidden">
-        <h1 class="title" style="font-size: 34px;">Select Mode</h1>
-        <p style="color: #cbd5e1; margin-bottom: 20px;">Choose how you want to play</p>
-        <button class="btn" style="width: 240px; margin: 8px;" onclick="selectDevice('laptop')">💻 LAPTOP MODE</button>
-        <button class="btn" style="width: 240px; margin: 8px;" onclick="selectDevice('mobile')">📱 MOBILE MODE</button>
-    </div>
-
-    <!-- Start Screen -->
+    <!-- Start & Difficulty Screen -->
     <div id="start-screen" class="overlay hidden">
         <h1 class="title">Ghost Brick Breaker</h1>
         <p style="color: #cbd5e1; margin-bottom: 5px;" id="level-display-label">Select Difficulty for Level 1:</p>
@@ -149,11 +217,12 @@
         <button class="btn" id="start-btn" onclick="startSelectedLevel()">START GAME</button>
     </div>
 
-    <!-- Canvas -->
+    <!-- Game Canvas -->
     <canvas id="gameCanvas" width="800" height="600"></canvas>
 </div>
 
 <script>
+const container = document.getElementById("game-container");
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -163,6 +232,7 @@ let score = 0;
 let lives = 3;
 let gameState = "LOADING"; 
 let selectedDifficulty = "normal";
+let currentViewMode = "laptop"; // 'laptop' or 'mobile'
 
 const modeSettings = {
     practice: { speed: 3.0, paddleWidth: 150, hpMult: 0 },
@@ -178,43 +248,74 @@ let bricks = [];
 let particles = [];
 let ghostAnimation = { scale: 0, opacity: 0, active: false };
 
-// Keyboard controls
+function setResponsiveMode(mode) {
+    currentViewMode = mode;
+    const laptopBtn = document.getElementById("laptop-mode-btn");
+    const mobileBtn = document.getElementById("mobile-mode-btn");
+
+    if (mode === 'mobile') {
+        container.classList.add("mobile-mode");
+        laptopBtn.classList.remove("active");
+        mobileBtn.classList.add("active");
+    } else {
+        container.classList.remove("mobile-mode");
+        mobileBtn.classList.remove("active");
+        laptopBtn.classList.add("active");
+    }
+    resizeCanvas();
+}
+
+function resizeCanvas() {
+    // Keep baseline logical canvas dimensions constant (800x600) for uniform physics, 
+    // while scaling rendered element bounds smoothly.
+    canvas.width = 800;
+    canvas.height = 600;
+}
+window.addEventListener("resize", resizeCanvas);
+
+// Keyboard Controls
 document.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft" || e.key === "a") paddle.dx = -paddle.speed;
     if (e.key === "ArrowRight" || e.key === "d") paddle.dx = paddle.speed;
     if (e.key === " ") releaseBalls();
 });
+
 document.addEventListener("keyup", (e) => {
     if (["ArrowLeft", "a", "ArrowRight", "d"].includes(e.key)) paddle.dx = 0;
 });
 
-// Touch and Mouse controls for mobile/laptop
-canvas.addEventListener("mousemove", (e) => {
+// Helper for Touch/Mouse coordinate calculations
+function handlePointerMove(clientX) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
-    let rootX = (e.clientX - rect.left) * scaleX;
+    let rootX = (clientX - rect.left) * scaleX;
     paddle.x = rootX - paddle.width / 2;
     if (paddle.x < 0) paddle.x = 0;
     if (paddle.x + paddle.width > canvas.width) paddle.x = canvas.width - paddle.width;
+}
+
+// Mouse movement
+canvas.addEventListener("mousemove", (e) => {
+    handlePointerMove(e.clientX);
 });
 
+// Touch controls for Mobile devices
 canvas.addEventListener("touchmove", (e) => {
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    let rootX = (e.touches[0].clientX - rect.left) * scaleX;
-    paddle.x = rootX - paddle.width / 2;
-    if (paddle.x < 0) paddle.x = 0;
-    if (paddle.x + paddle.width > canvas.width) paddle.x = canvas.width - paddle.width;
-}, { passive: false });
+    if (e.touches.length > 0) {
+        handlePointerMove(e.touches[0].clientX);
+    }
+}, { passive: true });
+
+canvas.addEventListener("touchstart", (e) => {
+    if (e.touches.length > 0) {
+        handlePointerMove(e.touches[0].clientX);
+    }
+    releaseBalls();
+}, { passive: true });
 
 canvas.addEventListener("click", () => {
     releaseBalls();
 });
-
-canvas.addEventListener("touchstart", (e) => {
-    releaseBalls();
-}, { passive: true });
 
 function releaseBalls() {
     balls.forEach(b => {
@@ -233,22 +334,18 @@ let loadInterval = setInterval(() => {
         clearInterval(loadInterval);
         setTimeout(() => {
             document.getElementById("loading-screen").classList.add("hidden");
-            document.getElementById("device-screen").classList.remove("hidden");
-        }, 500);
+            document.getElementById("start-screen").classList.remove("hidden");
+            // Auto detect screen size for initial mode
+            if (window.innerWidth <= 768) {
+                setResponsiveMode('mobile');
+            } else {
+                setResponsiveMode('laptop');
+            }
+        }, 400);
     }
     document.getElementById("progress").style.width = loadPercent + "%";
     document.getElementById("loading-status").innerText = "Loading Game Engine... " + loadPercent + "%";
-}, 80);
-
-function selectDevice(device) {
-    if (device === 'mobile') {
-        document.getElementById("game-container").classList.add("mobile-mode");
-    } else {
-        document.getElementById("game-container").classList.remove("mobile-mode");
-    }
-    document.getElementById("device-screen").classList.add("hidden");
-    document.getElementById("start-screen").classList.remove("hidden");
-}
+}, 60);
 
 function selectMode(mode, btnElement) {
     selectedDifficulty = mode;
@@ -380,6 +477,7 @@ function update() {
                 activeBalls++;
             }
 
+            // Paddle Collision
             if (ball.x > paddle.x && ball.x < paddle.x + paddle.width &&
                 ball.y + ball.radius > paddle.y && ball.y - ball.radius < paddle.y + paddle.height) {
                 let hitPoint = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
@@ -387,6 +485,7 @@ function update() {
                 ball.dy = -Math.abs(ball.speed);
             }
 
+            // Brick Collisions
             bricks.forEach((b) => {
                 if (b.hp > 0) {
                     if (ball.x > b.x && ball.x < b.x + b.w &&
@@ -516,6 +615,7 @@ function drawGhostFace(cx, cy, scale) {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Paddle
     let pGrad = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x, paddle.y + paddle.height);
     pGrad.addColorStop(0, "#c084fc");
     pGrad.addColorStop(1, "#7e22ce");
@@ -526,6 +626,7 @@ function draw() {
     ctx.roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 5);
     ctx.fill();
 
+    // Balls
     balls.forEach(ball => {
         if (ball.y > canvas.height + 20) return;
         let ballGrad = ctx.createRadialGradient(
@@ -545,8 +646,10 @@ function draw() {
         ctx.shadowBlur = 0;
     });
 
+    // Bricks
     bricks.forEach(b => draw3DBrick(b));
 
+    // Particles
     particles.forEach(p => {
         ctx.fillStyle = p.color;
         ctx.beginPath();
@@ -554,13 +657,15 @@ function draw() {
         ctx.fill();
     });
 
+    // Score & Level UI overlay
     ctx.fillStyle = "#fff";
     ctx.font = "bold 16px Segoe UI";
-    ctx.fillText(`Level: ${currentLevel}/${maxLevels}`, 20, 30);
-    ctx.fillText(`Score: ${score}`, 300, 30);
-    ctx.fillText(`Mode: ${selectedDifficulty.toUpperCase()}`, 480, 30);
-    ctx.fillText(`Lives: ${lives}`, 700, 30);
+    ctx.fillText(`Lvl: ${currentLevel}/${maxLevels}`, 15, 30);
+    ctx.fillText(`Score: ${score}`, 250, 30);
+    ctx.fillText(`Mode: ${selectedDifficulty.toUpperCase()}`, 450, 30);
+    ctx.fillText(`Lives: ${lives}`, 710, 30);
 
+    // Level Victory Animation
     if (gameState === "GHOST_CLEAR") {
         if (ghostAnimation.opacity < 1) ghostAnimation.opacity += 0.03;
         if (ghostAnimation.scale < 1.2) ghostAnimation.scale += 0.03;
@@ -571,7 +676,7 @@ function draw() {
         drawGhostFace(canvas.width / 2, canvas.height / 2 - 20, ghostAnimation.scale);
 
         ctx.fillStyle = "#e9d5ff";
-        ctx.font = "900 32px Segoe UI";
+        ctx.font = "900 28px Segoe UI";
         ctx.shadowColor = "#a855f7";
         ctx.shadowBlur = 15;
         ctx.textAlign = "center";
